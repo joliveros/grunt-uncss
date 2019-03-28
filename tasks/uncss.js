@@ -16,10 +16,21 @@ module.exports = function (grunt) {
     grunt.registerMultiTask('uncss', 'Remove unused CSS', function () {
         const done = this.async();
         const options = this.options({
-            report: 'min'
+            report: 'min',
+            logUnused: false
         });
 
+        // grunt.log.writeln(JSON.stringify(this));
+        // grunt.log.writeln(JSON.stringify(this.files));
+
         this.files.forEach(file => {
+
+            file.orig.src.forEach((url)=>{
+                if (!file.src.includes(url)) {
+                    file.src.push(url);
+                }
+            });
+
             const src = file.src.filter(filepath => {
                 if (/^https?:\/\//.test(filepath)) {
                     // This is a remote file: leave it in src array for uncss to handle.
@@ -41,12 +52,24 @@ module.exports = function (grunt) {
 
             try {
                 uncss(src, options, (error, output, report) => {
+
                     if (error) {
                         throw error;
                     }
 
-                    grunt.file.write(file.dest, output);
-                    grunt.log.writeln(`File ${chalk.cyan(file.dest)} created: ${maxmin(report.original, output, options.report === 'gzip')}`);
+                    if (options.logUnused === true) {
+                        const unusedSelectors = report.selectors.unused;
+                        grunt.log.writeln(JSON.stringify(unusedSelectors, null, 2));
+                        grunt.log.writeln(`Total unused selectors: ${unusedSelectors.length}`);
+                    }
+
+                    if (typeof file.dest === 'undefined') {
+                        grunt.log.error('`options.dest` file path was not provided. ' +
+                            'Therefore, resulting css file will not be output.');
+                    } else {
+                        grunt.file.write(file.dest, output);
+                        grunt.log.writeln(`File ${chalk.cyan(file.dest)} created: ${maxmin(report.original, output, options.report === 'gzip')}`);
+                    }
 
                     if (typeof options.reportFile !== 'undefined' && options.reportFile.length > 0) {
                         grunt.file.write(options.reportFile, JSON.stringify(report));
